@@ -18,14 +18,13 @@ pub enum LSError {
 pub enum LCError {
     #[fail(
         display = "No language server commands found for filetype: {}",
-        languageId
+        language_id
     )]
-    NoServerCommands { languageId: String },
-    #[fail(display = "Language server is not running for: {}", languageId)]
-    ServerNotRunning { languageId: String },
+    NoServerCommands { language_id: String },
+    #[fail(display = "Language server is not running for: {}", language_id)]
+    ServerNotRunning { language_id: String },
 }
 
-// Extensions.
 pub const REQUEST__GetState: &str = "languageClient/getState";
 pub const REQUEST__IsAlive: &str = "languageClient/isAlive";
 pub const REQUEST__StartServer: &str = "languageClient/startServer";
@@ -43,6 +42,8 @@ pub const REQUEST__CodeLensAction: &str = "LanguageClient/handleCodeLensAction";
 pub const REQUEST__SemanticScopes: &str = "languageClient/semanticScopes";
 pub const REQUEST__ShowSemanticHighlightSymbols: &str =
     "languageClient/showSemanticHighlightSymbols";
+pub const REQUEST__ClassFileContents: &str = "java/classFileContents";
+
 pub const NOTIFICATION__HandleBufNewFile: &str = "languageClient/handleBufNewFile";
 pub const NOTIFICATION__HandleBufEnter: &str = "languageClient/handleBufEnter";
 pub const NOTIFICATION__HandleFileType: &str = "languageClient/handleFileType";
@@ -55,22 +56,18 @@ pub const NOTIFICATION__FZFSinkLocation: &str = "LanguageClient_FZFSinkLocation"
 pub const NOTIFICATION__FZFSinkCommand: &str = "LanguageClient_FZFSinkCommand";
 pub const NOTIFICATION__ServerExited: &str = "$languageClient/serverExited";
 pub const NOTIFICATION__ClearDocumentHighlight: &str = "languageClient/clearDocumentHighlight";
-
-// Extensions by language servers.
-pub const NOTIFICATION__RustBeginBuild: &str = "rustDocument/beginBuild";
-pub const NOTIFICATION__RustDiagnosticsBegin: &str = "rustDocument/diagnosticsBegin";
-pub const NOTIFICATION__RustDiagnosticsEnd: &str = "rustDocument/diagnosticsEnd";
-// This is an RLS extension but the name is general enough to assume it might be implemented by
-// other language servers or planned for inclusion in the base protocol.
+// pub const NOTIFICATION__RustBeginBuild: &str = "rustDocument/beginBuild";
+// pub const NOTIFICATION__RustDiagnosticsBegin: &str = "rustDocument/diagnosticsBegin";
+// pub const NOTIFICATION__RustDiagnosticsEnd: &str = "rustDocument/diagnosticsEnd";
 pub const NOTIFICATION__WindowProgress: &str = "window/progress";
 pub const NOTIFICATION__LanguageStatus: &str = "language/status";
-pub const REQUEST__ClassFileContents: &str = "java/classFileContents";
 
-// Vim variable names
 pub const VIM__ServerStatus: &str = "g:LanguageClient_serverStatus";
 pub const VIM__ServerStatusMessage: &str = "g:LanguageClient_serverStatusMessage";
 pub const VIM__IsServerRunning: &str = "LanguageClient_isServerRunning";
 pub const VIM__StatusLineDiagnosticsCounts: &str = "LanguageClient_statusLineDiagnosticsCounts";
+
+// Vim variable names
 
 /// Thread safe read.
 pub trait SyncRead: BufRead + Sync + Send + Debug {}
@@ -161,36 +158,36 @@ pub struct State {
     pub is_nvim: bool,
     pub last_cursor_line: u64,
     pub last_line_diagnostic: String,
-    pub stashed_codeAction_actions: Vec<CodeAction>,
+    pub stashed_code_action_actions: Vec<CodeAction>,
 
     // User settings.
-    pub serverCommands: HashMap<String, Vec<String>>,
+    pub server_commands: HashMap<String, Vec<String>>,
     // languageId => (scope_regex => highlight group)
-    pub semanticHighlightMaps: HashMap<String, HashMap<String, String>>,
-    pub semanticScopeSeparator: String,
-    pub autoStart: bool,
-    pub selectionUI: SelectionUI,
-    pub selectionUI_autoOpen: bool,
+    pub semantic_highlight_maps: HashMap<String, HashMap<String, String>>,
+    pub semantic_scope_separator: String,
+    pub auto_start: bool,
+    pub selection_ui: SelectionUI,
+    pub selection_ui_auto_open: bool,
     pub trace: Option<TraceOption>,
-    pub diagnosticsEnable: bool,
-    pub diagnosticsList: DiagnosticsList,
-    pub diagnosticsDisplay: HashMap<u64, DiagnosticsDisplay>,
-    pub diagnosticsSignsMax: Option<usize>,
+    pub diagnostics_enable: bool,
+    pub diagnostics_list: DiagnosticsList,
+    pub diagnostics_display: HashMap<u64, DiagnosticsDisplay>,
+    pub diagnostics_signs_max: Option<usize>,
     pub diagnostics_max_severity: DiagnosticSeverity,
-    pub documentHighlightDisplay: HashMap<u64, DocumentHighlightDisplay>,
-    pub windowLogMessageLevel: MessageType,
-    pub settingsPath: Vec<String>,
-    pub loadSettings: bool,
-    pub rootMarkers: Option<RootMarkers>,
+    pub document_highlight_display: HashMap<u64, DocumentHighlightDisplay>,
+    pub window_log_message_level: MessageType,
+    pub settings_path: Vec<String>,
+    pub load_settings: bool,
+    pub root_markers: Option<RootMarkers>,
     pub change_throttle: Option<Duration>,
     pub wait_output_timeout: Duration,
-    pub hoverPreview: HoverPreviewOption,
-    pub completionPreferTextEdit: bool,
-    pub applyCompletionAdditionalTextEdits: bool,
+    pub hover_preview: HoverPreviewOption,
+    pub completion_prefer_text_edit: bool,
+    pub apply_completion_additional_text_edits: bool,
     pub use_virtual_text: UseVirtualText,
     pub echo_project_root: bool,
 
-    pub serverStderr: Option<String>,
+    pub server_stderr: Option<String>,
     pub logger: Logger,
     pub preferred_markup_kind: Option<Vec<MarkupKind>>,
 }
@@ -242,33 +239,33 @@ impl State {
             is_nvim: false,
             last_cursor_line: 0,
             last_line_diagnostic: " ".into(),
-            stashed_codeAction_actions: vec![],
+            stashed_code_action_actions: vec![],
 
-            serverCommands: HashMap::new(),
-            semanticHighlightMaps: HashMap::new(),
-            semanticScopeSeparator: ":".into(),
-            autoStart: true,
-            selectionUI: SelectionUI::LocationList,
-            selectionUI_autoOpen: true,
+            server_commands: HashMap::new(),
+            semantic_highlight_maps: HashMap::new(),
+            semantic_scope_separator: ":".into(),
+            auto_start: true,
+            selection_ui: SelectionUI::LocationList,
+            selection_ui_auto_open: true,
             trace: None,
-            diagnosticsEnable: true,
-            diagnosticsList: DiagnosticsList::Quickfix,
-            diagnosticsDisplay: DiagnosticsDisplay::default(),
-            diagnosticsSignsMax: None,
+            diagnostics_enable: true,
+            diagnostics_list: DiagnosticsList::Quickfix,
+            diagnostics_display: DiagnosticsDisplay::default(),
+            diagnostics_signs_max: None,
             diagnostics_max_severity: DiagnosticSeverity::Hint,
-            documentHighlightDisplay: DocumentHighlightDisplay::default(),
-            windowLogMessageLevel: MessageType::Warning,
-            settingsPath: vec![format!(".vim{}settings.json", std::path::MAIN_SEPARATOR)],
-            loadSettings: false,
-            rootMarkers: None,
+            document_highlight_display: DocumentHighlightDisplay::default(),
+            window_log_message_level: MessageType::Warning,
+            settings_path: vec![format!(".vim{}settings.json", std::path::MAIN_SEPARATOR)],
+            load_settings: false,
+            root_markers: None,
             change_throttle: None,
             wait_output_timeout: Duration::from_secs(10),
-            hoverPreview: HoverPreviewOption::default(),
-            completionPreferTextEdit: false,
-            applyCompletionAdditionalTextEdits: true,
+            hover_preview: HoverPreviewOption::default(),
+            completion_prefer_text_edit: false,
+            apply_completion_additional_text_edits: true,
             use_virtual_text: UseVirtualText::All,
             echo_project_root: true,
-            serverStderr: None,
+            server_stderr: None,
             preferred_markup_kind: None,
 
             logger,
@@ -372,9 +369,9 @@ impl FromStr for DiagnosticsList {
 pub struct DiagnosticsDisplay {
     pub name: String,
     pub texthl: String,
-    pub signText: String,
-    pub signTexthl: String,
-    pub virtualTexthl: String,
+    pub sign_text: String,
+    pub sign_texthl: String,
+    pub virtual_texthl: String,
 }
 
 impl DiagnosticsDisplay {
@@ -385,9 +382,9 @@ impl DiagnosticsDisplay {
             Self {
                 name: "Error".to_owned(),
                 texthl: "ALEError".to_owned(),
-                signText: "✖".to_owned(),
-                signTexthl: "ALEErrorSign".to_owned(),
-                virtualTexthl: "Error".to_owned(),
+                sign_text: "✖".to_owned(),
+                sign_texthl: "ALEErrorSign".to_owned(),
+                virtual_texthl: "Error".to_owned(),
             },
         );
         map.insert(
@@ -395,9 +392,9 @@ impl DiagnosticsDisplay {
             Self {
                 name: "Warning".to_owned(),
                 texthl: "ALEWarning".to_owned(),
-                signText: "⚠".to_owned(),
-                signTexthl: "ALEWarningSign".to_owned(),
-                virtualTexthl: "Todo".to_owned(),
+                sign_text: "⚠".to_owned(),
+                sign_texthl: "ALEWarningSign".to_owned(),
+                virtual_texthl: "Todo".to_owned(),
             },
         );
         map.insert(
@@ -405,9 +402,9 @@ impl DiagnosticsDisplay {
             Self {
                 name: "Information".to_owned(),
                 texthl: "ALEInfo".to_owned(),
-                signText: "ℹ".to_owned(),
-                signTexthl: "ALEInfoSign".to_owned(),
-                virtualTexthl: "Todo".to_owned(),
+                sign_text: "ℹ".to_owned(),
+                sign_texthl: "ALEInfoSign".to_owned(),
+                virtual_texthl: "Todo".to_owned(),
             },
         );
         map.insert(
@@ -415,9 +412,9 @@ impl DiagnosticsDisplay {
             Self {
                 name: "Hint".to_owned(),
                 texthl: "ALEInfo".to_owned(),
-                signText: "➤".to_owned(),
-                signTexthl: "ALEInfoSign".to_owned(),
-                virtualTexthl: "Todo".to_owned(),
+                sign_text: "➤".to_owned(),
+                sign_texthl: "ALEInfoSign".to_owned(),
+                virtual_texthl: "Todo".to_owned(),
             },
         );
         map
@@ -564,11 +561,11 @@ pub struct VimCompleteItem {
     pub icase: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dup: Option<u64>,
-    /// Deprecated. Use `user_data` instead.
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[deprecated(note = "use `user_data` instead")]
     pub snippet: Option<String>,
-    /// Deprecated. Use `user_data` instead.
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[deprecated(note = "use `user_data` instead")]
     pub is_snippet: Option<bool>,
     // NOTE: `user_data` can only be string in vim. So cannot specify concrete type here.
     #[serde(skip_serializing_if = "Option::is_none")]

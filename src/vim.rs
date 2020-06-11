@@ -51,7 +51,7 @@ impl Vim {
         Ok(filename.canonicalize())
     }
 
-    pub fn get_languageId(&self, filename: &str, params: &Value) -> Fallible<String> {
+    pub fn get_language_id(&self, filename: &str, params: &Value) -> Fallible<String> {
         let key = "languageId";
         let expr = "&filetype";
 
