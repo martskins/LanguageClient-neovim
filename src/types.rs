@@ -1,10 +1,30 @@
-use super::*;
 use crate::logger::Logger;
 use crate::rpcclient::RpcClient;
 use crate::sign::Sign;
-use crate::vim::Vim;
-use std::collections::BTreeMap;
-use std::sync::mpsc;
+use crate::{utils::ToUrl, vim::Vim};
+use failure::{bail, err_msg, format_err, Error, Fail};
+use jsonrpc_core::Params;
+use log::*;
+use lsp_types::{
+    CodeAction, CodeLens, CompletionItem, Diagnostic, DiagnosticSeverity, DocumentHighlightKind,
+    FileChangeType, FileEvent, Hover, HoverContents, InsertTextFormat, MarkedString, MarkupContent,
+    MarkupKind, MessageType, NumberOrString, Registration, SemanticHighlightingInformation,
+    SymbolInformation, TextDocumentItem, TextDocumentPositionParams, TraceOption, Url,
+    WorkspaceEdit,
+};
+use maplit::hashmap;
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde_json::Value;
+use std::collections::{BTreeMap, HashMap};
+use std::{
+    io::{BufRead, BufReader, BufWriter, Write},
+    net::TcpStream,
+    path::PathBuf,
+    process::{ChildStdin, ChildStdout},
+    str::FromStr,
+    sync::{mpsc, Arc},
+    time::{Duration, Instant},
+};
 
 pub type Fallible<T> = failure::Fallible<T>;
 
@@ -70,12 +90,12 @@ pub const VIM__StatusLineDiagnosticsCounts: &str = "LanguageClient_statusLineDia
 // Vim variable names
 
 /// Thread safe read.
-pub trait SyncRead: BufRead + Sync + Send + Debug {}
+pub trait SyncRead: BufRead + Sync + Send + std::fmt::Debug {}
 impl SyncRead for BufReader<ChildStdout> {}
 impl SyncRead for BufReader<TcpStream> {}
 
 /// Thread safe write.
-pub trait SyncWrite: Write + Sync + Send + Debug {}
+pub trait SyncWrite: Write + Sync + Send + std::fmt::Debug {}
 impl SyncWrite for BufWriter<ChildStdin> {}
 impl SyncWrite for BufWriter<TcpStream> {}
 
@@ -88,15 +108,15 @@ pub type Bufnr = i64;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Message {
-    MethodCall(LanguageId, rpc::MethodCall),
-    Notification(LanguageId, rpc::Notification),
-    Output(rpc::Output),
+    MethodCall(LanguageId, jsonrpc_core::MethodCall),
+    Notification(LanguageId, jsonrpc_core::Notification),
+    Output(jsonrpc_core::Output),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Call {
-    MethodCall(LanguageId, rpc::MethodCall),
-    Notification(LanguageId, rpc::Notification),
+    MethodCall(LanguageId, jsonrpc_core::MethodCall),
+    Notification(LanguageId, jsonrpc_core::Notification),
 }
 
 #[derive(Clone, Copy, Serialize)]
@@ -655,13 +675,13 @@ impl VimCompleteItem {
 }
 
 pub trait ToRpcError {
-    fn to_rpc_error(&self) -> rpc::Error;
+    fn to_rpc_error(&self) -> jsonrpc_core::Error;
 }
 
 impl ToRpcError for Error {
-    fn to_rpc_error(&self) -> rpc::Error {
-        rpc::Error {
-            code: rpc::ErrorCode::InternalError,
+    fn to_rpc_error(&self) -> jsonrpc_core::Error {
+        jsonrpc_core::Error {
+            code: jsonrpc_core::ErrorCode::InternalError,
             message: self.to_string(),
             data: None,
         }
@@ -700,12 +720,12 @@ impl<'a> ToInt for &'a str {
     }
 }
 
-impl ToInt for rpc::Id {
+impl ToInt for jsonrpc_core::Id {
     fn to_int(&self) -> Fallible<u64> {
         match *self {
-            rpc::Id::Num(id) => Ok(id),
-            rpc::Id::Str(ref s) => s.as_str().to_int(),
-            rpc::Id::Null => Err(err_msg("Null id")),
+            jsonrpc_core::Id::Num(id) => Ok(id),
+            jsonrpc_core::Id::Str(ref s) => s.as_str().to_int(),
+            jsonrpc_core::Id::Null => Err(err_msg("Null id")),
         }
     }
 }
@@ -714,7 +734,7 @@ pub trait ToString {
     fn to_string(&self) -> String;
 }
 
-impl ToString for lsp::MarkedString {
+impl ToString for lsp_types::MarkedString {
     fn to_string(&self) -> String {
         match *self {
             MarkedString::String(ref s) => s.clone(),
@@ -723,7 +743,7 @@ impl ToString for lsp::MarkedString {
     }
 }
 
-impl ToString for lsp::MarkupContent {
+impl ToString for lsp_types::MarkupContent {
     fn to_string(&self) -> String {
         self.value.clone()
     }
@@ -743,11 +763,11 @@ impl ToString for Hover {
     }
 }
 
-impl ToString for lsp::Documentation {
+impl ToString for lsp_types::Documentation {
     fn to_string(&self) -> String {
         match *self {
-            lsp::Documentation::String(ref s) => s.to_owned(),
-            lsp::Documentation::MarkupContent(ref mc) => mc.to_string(),
+            lsp_types::Documentation::String(ref s) => s.to_owned(),
+            lsp_types::Documentation::MarkupContent(ref mc) => mc.to_string(),
         }
     }
 }
@@ -768,7 +788,7 @@ pub trait ToDisplay {
     }
 }
 
-impl ToDisplay for lsp::MarkedString {
+impl ToDisplay for lsp_types::MarkedString {
     fn to_display(&self) -> Vec<String> {
         let s = match self {
             MarkedString::String(ref s) => s,
@@ -841,7 +861,7 @@ pub trait LinesLen {
     fn lines_len(&self) -> usize;
 }
 
-impl LinesLen for lsp::MarkedString {
+impl LinesLen for lsp_types::MarkedString {
     fn lines_len(&self) -> usize {
         match *self {
             MarkedString::String(ref s) => s.lines().count(),
@@ -1090,20 +1110,20 @@ impl FromLSP<SymbolInformation> for QuickfixEntry {
     }
 }
 
-impl FromLSP<Vec<lsp::SymbolInformation>> for Vec<QuickfixEntry> {
-    fn from_lsp(symbols: &Vec<lsp::SymbolInformation>) -> Fallible<Self> {
+impl FromLSP<Vec<lsp_types::SymbolInformation>> for Vec<QuickfixEntry> {
+    fn from_lsp(symbols: &Vec<lsp_types::SymbolInformation>) -> Fallible<Self> {
         symbols.iter().map(QuickfixEntry::from_lsp).collect()
     }
 }
 
-impl FromLSP<Vec<lsp::DocumentSymbol>> for Vec<QuickfixEntry> {
-    fn from_lsp(document_symbols: &Vec<lsp::DocumentSymbol>) -> Fallible<Self> {
+impl FromLSP<Vec<lsp_types::DocumentSymbol>> for Vec<QuickfixEntry> {
+    fn from_lsp(document_symbols: &Vec<lsp_types::DocumentSymbol>) -> Fallible<Self> {
         let mut symbols = Vec::new();
 
         fn walk_document_symbol(
             buffer: &mut Vec<QuickfixEntry>,
             parent: Option<&str>,
-            ds: &lsp::DocumentSymbol,
+            ds: &lsp_types::DocumentSymbol,
         ) {
             let start = ds.selection_range.start;
 
@@ -1140,9 +1160,9 @@ impl FromLSP<Vec<lsp::DocumentSymbol>> for Vec<QuickfixEntry> {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum RawMessage {
-    Notification(rpc::Notification),
-    MethodCall(rpc::MethodCall),
-    Output(rpc::Output),
+    Notification(jsonrpc_core::Notification),
+    MethodCall(jsonrpc_core::MethodCall),
+    Output(jsonrpc_core::Output),
 }
 
 #[derive(Debug, Eq, PartialEq, Serialize)]

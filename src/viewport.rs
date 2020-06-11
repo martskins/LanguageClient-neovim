@@ -1,4 +1,5 @@
-use lsp_types::*;
+use lsp_types::Range;
+use serde::{Deserialize, Serialize};
 
 /// Visible lines of editor.
 ///

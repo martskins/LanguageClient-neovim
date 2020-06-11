@@ -7,7 +7,7 @@ const CONTENT_MODIFIED_ERROR_CODE: i64 = -32801;
 
 #[derive(Serialize)]
 pub struct RpcClient {
-    languageId: LanguageId,
+    language_id: LanguageId,
     #[serde(skip_serializing)]
     id: AtomicU64,
     #[serde(skip_serializing)]
@@ -20,7 +20,7 @@ pub struct RpcClient {
 impl RpcClient {
     #[allow(clippy::new_ret_no_self)]
     pub fn new(
-        languageId: LanguageId,
+        language_id: LanguageId,
         reader: impl BufRead + Send + 'static,
         writer: impl Write + Send + 'static,
         process_id: Option<u32>,
@@ -28,29 +28,29 @@ impl RpcClient {
     ) -> Fallible<Self> {
         let (reader_tx, reader_rx): (Sender<(Id, Sender<rpc::Output>)>, _) = unbounded();
 
-        let languageId_clone = languageId.clone();
-        let reader_thread_name = format!("reader-{:?}", languageId);
+        let language_id_clone = language_id.clone();
+        let reader_thread_name = format!("reader-{:?}", language_id);
         thread::Builder::new()
             .name(reader_thread_name.clone())
             .spawn(move || {
-                if let Err(err) = loop_read(reader, reader_rx, &sink, &languageId_clone) {
+                if let Err(err) = loop_read(reader, reader_rx, &sink, &language_id_clone) {
                     error!("Thread {} exited with error: {:?}", reader_thread_name, err);
                 }
             })?;
 
         let (writer_tx, writer_rx) = unbounded();
-        let writer_thread_name = format!("writer-{:?}", languageId);
-        let languageId_clone = languageId.clone();
+        let writer_thread_name = format!("writer-{:?}", language_id);
+        let language_id_clone = language_id.clone();
         thread::Builder::new()
             .name(writer_thread_name.clone())
             .spawn(move || {
-                if let Err(err) = loop_write(writer, &writer_rx, &languageId_clone) {
+                if let Err(err) = loop_write(writer, &writer_rx, &language_id_clone) {
                     error!("Thread {} exited with error: {:?}", writer_thread_name, err);
                 }
             })?;
 
         Ok(Self {
-            languageId,
+            language_id,
             id: AtomicU64::default(),
             process_id,
             reader_tx,

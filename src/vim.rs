@@ -1,7 +1,16 @@
-use super::*;
 use crate::rpcclient::RpcClient;
-use crate::sign::Sign;
-use crate::viewport::Viewport;
+use crate::{
+    sign::Sign,
+    types::{Bufnr, Fallible, QuickfixEntry, VimExp, VirtualText},
+    utils::Canonicalize,
+    viewport::Viewport,
+};
+use jsonrpc_core::Value;
+use log::*;
+use lsp_types::Position;
+use serde::{de::DeserializeOwned, Serialize};
+use serde_json::json;
+use std::{path::Path, sync::Arc};
 
 /// Try get value of an variable from RPC params.
 pub fn try_get<R: DeserializeOwned>(key: &str, params: &Value) -> Fallible<Option<R>> {
@@ -68,7 +77,7 @@ impl Vim {
         let key = "viewport";
         let expr = "LSP#viewport()";
 
-        try_get(key, params)?.map_or_else(|| self.eval(expr), Ok)
+        try_get::<_>(key, params)?.map_or_else(|| self.eval(expr), Ok)
     }
 
     pub fn get_position(&self, params: &Value) -> Fallible<Position> {
