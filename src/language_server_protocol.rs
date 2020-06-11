@@ -1429,7 +1429,7 @@ impl LanguageClient {
             return Ok(result);
         }
 
-        let response: Option<GotoDefinitionResponse> = result.clone().to_lsp()?;
+        let response = Option::<GotoDefinitionResponse>::deserialize(params)?;
 
         let locations = match response {
             None => vec![],
@@ -2060,7 +2060,7 @@ impl LanguageClient {
     pub fn workspace_apply_edit(&self, params: &Value) -> Fallible<Value> {
         info!("Begin {}", lsp_types::request::ApplyWorkspaceEdit::METHOD);
 
-        let params: ApplyWorkspaceEditParams = params.clone().to_lsp()?;
+        let params = ApplyWorkspaceEditParams::deserialize(params)?;
         self.apply_workspace_edit(&params.edit)?;
 
         info!("End {}", lsp_types::request::ApplyWorkspaceEdit::METHOD);
@@ -2414,7 +2414,7 @@ impl LanguageClient {
             "Begin {}",
             lsp_types::notification::PublishDiagnostics::METHOD
         );
-        let params: PublishDiagnosticsParams = params.clone().to_lsp()?;
+        let params = PublishDiagnosticsParams::deserialize(params)?;
         if !self.get(|state| state.diagnostics_enable)? {
             return Ok(());
         }
@@ -2534,7 +2534,7 @@ impl LanguageClient {
             "Begin {}",
             lsp_types::notification::SemanticHighlighting::METHOD
         );
-        let mut params: SemanticHighlightingParams = params.clone().to_lsp()?;
+        let mut params = SemanticHighlightingParams::deserialize(params)?;
 
         // TODO: Do we need to handle the versioning of the file?
         let mut filename = params
@@ -2749,7 +2749,7 @@ impl LanguageClient {
 
     pub fn window_log_message(&self, params: &Value) -> Fallible<()> {
         info!("Begin {}", lsp_types::notification::LogMessage::METHOD);
-        let params: LogMessageParams = params.clone().to_lsp()?;
+        let params = LogMessageParams::deserialize(params)?;
         let threshold = self.get(|state| state.window_log_message_level.to_int())??;
         if params.typ.to_int()? > threshold {
             return Ok(());
@@ -2763,7 +2763,7 @@ impl LanguageClient {
 
     pub fn window_show_message(&self, params: &Value) -> Fallible<()> {
         info!("Begin {}", lsp_types::notification::ShowMessage::METHOD);
-        let params: ShowMessageParams = params.clone().to_lsp()?;
+        let params = ShowMessageParams::deserialize(params)?;
         let msg = format!("[{:?}] {}", params.typ, params.message);
         self.vim()?.echomsg(&msg)?;
         info!("End {}", lsp_types::notification::ShowMessage::METHOD);
@@ -2773,7 +2773,7 @@ impl LanguageClient {
     pub fn window_show_message_request(&self, params: &Value) -> Fallible<Value> {
         info!("Begin {}", lsp_types::request::ShowMessageRequest::METHOD);
         let mut v = Value::Null;
-        let msg_params: ShowMessageRequestParams = params.clone().to_lsp()?;
+        let msg_params = ShowMessageRequestParams::deserialize(params)?;
         let msg = format!("[{:?}] {}", msg_params.typ, msg_params.message);
         let msg_actions = msg_params.actions.unwrap_or_default();
         if msg_actions.is_empty() {
@@ -2800,7 +2800,7 @@ impl LanguageClient {
 
     pub fn client_register_capability(&self, language_id: &str, params: &Value) -> Fallible<Value> {
         info!("Begin {}", lsp_types::request::RegisterCapability::METHOD);
-        let params: RegistrationParams = params.clone().to_lsp()?;
+        let params = RegistrationParams::deserialize(params)?;
         for r in &params.registrations {
             match r.method.as_str() {
                 lsp_types::notification::DidChangeWatchedFiles::METHOD => {
@@ -2852,7 +2852,7 @@ impl LanguageClient {
         params: &Value,
     ) -> Fallible<Value> {
         info!("Begin {}", lsp_types::request::UnregisterCapability::METHOD);
-        let params: UnregistrationParams = params.clone().to_lsp()?;
+        let params = UnregistrationParams::deserialize(params)?;
         let mut regs_removed = vec![];
         for r in &params.unregisterations {
             if let Some(idx) = self.get(|state| {
@@ -2932,7 +2932,7 @@ impl LanguageClient {
 
     pub fn register_server_commands(&self, params: &Value) -> Fallible<Value> {
         info!("Begin {}", REQUEST__RegisterServerCommands);
-        let commands: HashMap<String, Vec<String>> = params.clone().to_lsp()?;
+        let commands = HashMap::<String, Vec<String>>::deserialize(params)?;
         self.update(|state| {
             state.server_commands.extend(commands);
             Ok(())
@@ -3778,7 +3778,7 @@ impl LanguageClient {
     // Extensions by language servers.
     pub fn language_status(&self, params: &Value) -> Fallible<()> {
         info!("Begin {}", NOTIFICATION__LanguageStatus);
-        let params: LanguageStatusParams = params.clone().to_lsp()?;
+        let params = LanguageStatusParams::deserialize(params)?;
         let msg = format!("{} {}", params.typee, params.message);
         self.vim()?.echomsg(&msg)?;
         info!("End {}", NOTIFICATION__LanguageStatus);
@@ -3817,7 +3817,7 @@ impl LanguageClient {
 
     pub fn window_progress(&self, params: &Value) -> Fallible<()> {
         info!("Begin {}", NOTIFICATION__WindowProgress);
-        let params: WindowProgressParams = params.clone().to_lsp()?;
+        let params = WindowProgressParams::deserialize(params)?;
 
         let done = params.done.unwrap_or(false);
 
@@ -4097,7 +4097,7 @@ impl LanguageClient {
         let filename = self.vim()?.get_filename(params)?;
         let language_id = self.vim()?.get_language_id(&filename, params)?;
 
-        let params: DidChangeWatchedFilesParams = params.clone().to_lsp()?;
+        let params = DidChangeWatchedFilesParams::deserialize(params)?;
         self.get_client(&Some(language_id))?.notify(
             lsp_types::notification::DidChangeWatchedFiles::METHOD,
             params,

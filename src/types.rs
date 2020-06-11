@@ -13,7 +13,7 @@ use lsp_types::{
     WorkspaceEdit,
 };
 use maplit::hashmap;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
 use std::{
@@ -1070,23 +1070,23 @@ impl ToLSP<Vec<FileEvent>> for notify::DebouncedEvent {
     }
 }
 
-impl<T> ToLSP<T> for Value
-where
-    T: DeserializeOwned,
-{
-    fn to_lsp(self) -> Fallible<T> {
-        Ok(serde_json::from_value(self)?)
-    }
-}
+// impl<T> ToLSP<T> for Value
+// where
+//     T: DeserializeOwned,
+// {
+//     fn to_lsp(self) -> Fallible<T> {
+//         Ok(serde_json::from_value(self)?)
+//     }
+// }
 
-impl<T> ToLSP<T> for Option<Params>
-where
-    T: DeserializeOwned,
-{
-    fn to_lsp(self) -> Fallible<T> {
-        serde_json::to_value(self)?.to_lsp()
-    }
-}
+// impl<T> ToLSP<T> for Option<Params>
+// where
+//     T: DeserializeOwned,
+// {
+//     fn to_lsp(self) -> Fallible<T> {
+//         serde_json::to_value(self)?.to_lsp()
+//     }
+// }
 
 pub trait FromLSP<F>
 where
