@@ -45,47 +45,46 @@ pub enum LCError {
     ServerNotRunning { language_id: String },
 }
 
-pub const REQUEST__GetState: &str = "languageClient/getState";
-pub const REQUEST__IsAlive: &str = "languageClient/isAlive";
-pub const REQUEST__StartServer: &str = "languageClient/startServer";
-pub const REQUEST__RegisterServerCommands: &str = "languageClient/registerServerCommands";
-pub const REQUEST__OmniComplete: &str = "languageClient/omniComplete";
-pub const REQUEST__SetLoggingLevel: &str = "languageClient/setLoggingLevel";
-pub const REQUEST__SetDiagnosticsList: &str = "languageClient/setDiagnosticsList";
-pub const REQUEST__RegisterHandlers: &str = "languageClient/registerHandlers";
-pub const REQUEST__NCMRefresh: &str = "LanguageClient_NCMRefresh";
-pub const REQUEST__NCM2OnComplete: &str = "LanguageClient_NCM2OnComplete";
-pub const REQUEST__ExplainErrorAtPoint: &str = "languageClient/explainErrorAtPoint";
-pub const REQUEST__FindLocations: &str = "languageClient/findLocations";
-pub const REQUEST__DebugInfo: &str = "languageClient/debugInfo";
-pub const REQUEST__CodeLensAction: &str = "LanguageClient/handleCodeLensAction";
-pub const REQUEST__SemanticScopes: &str = "languageClient/semanticScopes";
-pub const REQUEST__ShowSemanticHighlightSymbols: &str =
-    "languageClient/showSemanticHighlightSymbols";
-pub const REQUEST__ClassFileContents: &str = "java/classFileContents";
+pub const REQUEST_GET_STATE: &str = "languageClient/getState";
+pub const REQUEST_IS_ALIVE: &str = "languageClient/isAlive";
+pub const REQUEST_START_SERVER: &str = "languageClient/startServer";
+pub const REQUEST_REGISTER_SERVER_COMMANDS: &str = "languageClient/registerServerCommands";
+pub const REQUEST_OMNI_COMPLETE: &str = "languageClient/omniComplete";
+pub const REQUEST_SET_LOGGING_LEVEL: &str = "languageClient/setLoggingLevel";
+pub const REQUEST_SET_DIAGNOSTICS_LIST: &str = "languageClient/setDiagnosticsList";
+pub const REQUEST_REGISTER_HANDLERS: &str = "languageClient/registerHandlers";
+pub const REQUEST_NCM_REFRESH: &str = "LanguageClient_NCMRefresh";
+pub const REQUEST_NCM2_ON_COMPLETE: &str = "LanguageClient_NCM2OnComplete";
+pub const REQUEST_EXPLAIN_ERROR_AT_POINT: &str = "languageClient/explainErrorAtPoint";
+pub const REQUEST_FIND_LOCATIONS: &str = "languageClient/findLocations";
+pub const REQUEST_DEBUG_INFO: &str = "languageClient/debugInfo";
+pub const REQUEST_CODE_LENS_ACTION: &str = "LanguageClient/handleCodeLensAction";
+pub const REQUEST_SEMANTIC_SCOPES: &str = "languageClient/semanticScopes";
+pub const REQUEST_SHOW_SEMANTIC_HL_SYMBOLS: &str = "languageClient/showSemanticHighlightSymbols";
+pub const REQUEST_CLASS_FILE_CONTENTS: &str = "java/classFileContents";
 
-pub const NOTIFICATION__HandleBufNewFile: &str = "languageClient/handleBufNewFile";
-pub const NOTIFICATION__HandleBufEnter: &str = "languageClient/handleBufEnter";
-pub const NOTIFICATION__HandleFileType: &str = "languageClient/handleFileType";
-pub const NOTIFICATION__HandleTextChanged: &str = "languageClient/handleTextChanged";
-pub const NOTIFICATION__HandleBufWritePost: &str = "languageClient/handleBufWritePost";
-pub const NOTIFICATION__HandleBufDelete: &str = "languageClient/handleBufDelete";
-pub const NOTIFICATION__HandleCursorMoved: &str = "languageClient/handleCursorMoved";
-pub const NOTIFICATION__HandleCompleteDone: &str = "languageClient/handleCompleteDone";
-pub const NOTIFICATION__FZFSinkLocation: &str = "LanguageClient_FZFSinkLocation";
-pub const NOTIFICATION__FZFSinkCommand: &str = "LanguageClient_FZFSinkCommand";
-pub const NOTIFICATION__ServerExited: &str = "$languageClient/serverExited";
-pub const NOTIFICATION__ClearDocumentHighlight: &str = "languageClient/clearDocumentHighlight";
+pub const NOTIFICATION_HANDLE_BUF_NEW_FILE: &str = "languageClient/handleBufNewFile";
+pub const NOTIFICATION_HANDLE_BUF_ENTER: &str = "languageClient/handleBufEnter";
+pub const NOTIFICATION_HANDLE_FILE_TYPE: &str = "languageClient/handleFileType";
+pub const NOTIFICATION_HANDLE_TEXT_CHANGED: &str = "languageClient/handleTextChanged";
+pub const NOTIFICATION_HANDLE_BUF_WRITE_POST: &str = "languageClient/handleBufWritePost";
+pub const NOTIFICATION_HANDLE_BUF_DELETE: &str = "languageClient/handleBufDelete";
+pub const NOTIFICATION_HANDLE_CURSOR_MOVED: &str = "languageClient/handleCursorMoved";
+pub const NOTIFICATION_HANDLE_COMPLETE_DONE: &str = "languageClient/handleCompleteDone";
+pub const NOTIFICATION_FZF_SINK_LOCATION: &str = "LanguageClient_FZFSinkLocation";
+pub const NOTIFICATION_FZF_SINK_COMMAND: &str = "LanguageClient_FZFSinkCommand";
+pub const NOTIFICATION_SERVER_EXITED: &str = "$languageClient/serverExited";
+pub const NOTIFICATION_CLEAR_DOCUMENT_HL: &str = "languageClient/clearDocumentHighlight";
 // pub const NOTIFICATION__RustBeginBuild: &str = "rustDocument/beginBuild";
 // pub const NOTIFICATION__RustDiagnosticsBegin: &str = "rustDocument/diagnosticsBegin";
 // pub const NOTIFICATION__RustDiagnosticsEnd: &str = "rustDocument/diagnosticsEnd";
-pub const NOTIFICATION__WindowProgress: &str = "window/progress";
-pub const NOTIFICATION__LanguageStatus: &str = "language/status";
+pub const NOTIFICATION_WINDOW_PROGRESS: &str = "window/progress";
+pub const NOTIFICATION_LANGUAGE_STATUS: &str = "language/status";
 
-pub const VIM__ServerStatus: &str = "g:LanguageClient_serverStatus";
-pub const VIM__ServerStatusMessage: &str = "g:LanguageClient_serverStatusMessage";
-pub const VIM__IsServerRunning: &str = "LanguageClient_isServerRunning";
-pub const VIM__StatusLineDiagnosticsCounts: &str = "LanguageClient_statusLineDiagnosticsCounts";
+pub const VIM_SERVER_STATUS: &str = "g:LanguageClient_serverStatus";
+pub const VIM_SERVER_STATUS_MESSAGE: &str = "g:LanguageClient_serverStatusMessage";
+pub const VIM_IS_SERVER_RUNNING: &str = "LanguageClient_isServerRunning";
+pub const VIM_STATUS_LINE_DIAGNOSTICS_COUNTS: &str = "LanguageClient_statusLineDiagnosticsCounts";
 
 // Vim variable names
 
@@ -1070,24 +1069,6 @@ impl ToLSP<Vec<FileEvent>> for notify::DebouncedEvent {
     }
 }
 
-// impl<T> ToLSP<T> for Value
-// where
-//     T: DeserializeOwned,
-// {
-//     fn to_lsp(self) -> Fallible<T> {
-//         Ok(serde_json::from_value(self)?)
-//     }
-// }
-
-// impl<T> ToLSP<T> for Option<Params>
-// where
-//     T: DeserializeOwned,
-// {
-//     fn to_lsp(self) -> Fallible<T> {
-//         serde_json::to_value(self)?.to_lsp()
-//     }
-// }
-
 pub trait FromLSP<F>
 where
     Self: Sized,
@@ -1174,6 +1155,6 @@ pub struct VirtualText {
 
 #[derive(Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct WorkspaceEditWithCursor {
-    pub workspaceEdit: WorkspaceEdit,
-    pub cursorPosition: Option<TextDocumentPositionParams>,
+    pub workspace_edit: WorkspaceEdit,
+    pub cursor_position: Option<TextDocumentPositionParams>,
 }

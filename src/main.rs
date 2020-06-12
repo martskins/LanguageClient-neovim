@@ -1,39 +1,20 @@
-#![allow(non_snake_case, non_upper_case_globals)]
-#![deny(clippy::option_unwrap_used)]
-
-mod types;
-use crate::types::*;
-mod utils;
-use crate::utils::*;
 mod language_client;
 mod language_server_protocol;
 mod logger;
 mod rpcclient;
 mod rpchandler;
 mod sign;
+mod types;
+mod utils;
 mod viewport;
 mod vim;
 mod vimext;
 
-use failure::{bail, err_msg, format_err, ResultExt};
-use jsonrpc_core::{self as rpc, Value};
-use log::{debug, error, info, log_enabled, warn};
-use lsp_types::{self as lsp, *};
-use serde::de::DeserializeOwned;
-use serde::Serialize;
-use serde_json::json;
-use std::collections::{HashMap, HashSet};
-use std::fmt::Debug;
-use std::io::prelude::*;
-use std::io::BufRead;
-use std::ops::Deref;
-use std::path::{Path, PathBuf};
-use std::str::FromStr;
-use std::sync::{Arc, Mutex, MutexGuard};
-use std::thread;
-use std::time::Duration;
+use failure::Fallible;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 use structopt::StructOpt;
-use url::Url;
+use types::State;
 
 #[derive(Debug, StructOpt)]
 struct Arguments {}
