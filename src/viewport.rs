@@ -25,24 +25,28 @@ impl Viewport {
     }
 }
 
-#[test]
-fn test_new() {
-    let viewport = Viewport::new(0, 7);
-    assert_eq!(viewport.start, 0);
-    assert_eq!(viewport.end, 7);
-}
-
-#[test]
-fn test_overlaps() {
+#[cfg(test)]
+mod test {
+    use super::*;
     use lsp_types::*;
 
-    let viewport = Viewport::new(2, 7);
-    assert_eq!(
-        viewport.overlaps(Range::new(Position::new(0, 0), Position::new(1, 10))),
-        false
-    );
-    assert_eq!(
-        viewport.overlaps(Range::new(Position::new(0, 0), Position::new(2, 0))),
-        true
-    );
+    #[test]
+    fn test_new() {
+        let viewport = Viewport::new(0, 7);
+        assert_eq!(viewport.start, 0);
+        assert_eq!(viewport.end, 7);
+    }
+
+    #[test]
+    fn test_overlaps() {
+        let viewport = Viewport::new(2, 7);
+        assert_eq!(
+            viewport.overlaps(Range::new(Position::new(0, 0), Position::new(1, 10))),
+            false
+        );
+        assert_eq!(
+            viewport.overlaps(Range::new(Position::new(0, 0), Position::new(2, 0))),
+            true
+        );
+    }
 }
