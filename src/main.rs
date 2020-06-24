@@ -21,6 +21,7 @@ use types::State;
 struct Arguments {}
 
 fn main() -> Result<()> {
+    let a = 3;
     let version = format!("{} {}", env!("CARGO_PKG_VERSION"), env!("GIT_HASH"));
     let args = Arguments::clap().version(version.as_str());
     let _ = args.get_matches();
