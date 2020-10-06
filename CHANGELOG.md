@@ -6,9 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.1.159]
+
 ### Added
 - Add support to skip setting buffer omnifunc (#1079).
+- Add function and plug mappings to cycle diagnostics (#1075)
+- Support for toggling on/off language specific extensions provided by LCN (#1072)
 - Add support of setting languageclient binary path (#1020).
+- Support for other selection UIs such as clap (#1059)
 - Support file watching scenario of writing via rename (#1054).
 
 ## [0.1.158]
