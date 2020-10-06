@@ -3,10 +3,46 @@ name: ci
 on: [push, pull_request]
 
 jobs:
-  ci:
+  lint:
     runs-on: ubuntu-20.04
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
     - uses: cachix/install-nix-action@v10
+    - uses: actions/cache@v2
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
     # - uses: mxschmitt/action-tmate@v3
-    - run: nix-shell --run "rustup set profile default && make ci"
+    - run: nix-shell --run "rustup set profile default && make vim-lint && make python-lint && make check-fmt-and-clippy"
+
+  test:
+    runs-on: ubuntu-20.04
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/cache@v2
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+    - uses: actions-rs/cargo@v1
+      with:
+        command: test
+
+  test-integration:
+    runs-on: ubuntu-20.04
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/cache@v2
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+    - uses: cachix/install-nix-action@v10
+    - run: nix-shell --run "rustup set profile default && make integration-test"

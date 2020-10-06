@@ -93,7 +93,7 @@ def test_textDocument_rename_multiple_oneline(nvim):
     nvim.command("edit! {}".format(PATH_LIBS_RS))
     time.sleep(1)
     expect = [line.replace("a", "x") for line in nvim.current.buffer]
-    nvim.funcs.cursor(4, 13)
+    nvim.funcs.cursor(4, 14)
     # TODO: Test case where new variable length is different.
     nvim.funcs.LanguageClient_textDocument_rename({"newName": "x"})
     time.sleep(1)
@@ -101,7 +101,7 @@ def test_textDocument_rename_multiple_oneline(nvim):
     assert nvim.current.buffer[:] == expect
 
     nvim.command("bd!")
-    nvim.command("edit! {}".format(PATH_MAIN_RS))
+    nvim.command("edit! {}".format(PATH_LIBS_RS))
 
 
 def test_textDocument_rename_multiple_files(nvim):
