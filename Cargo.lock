@@ -387,7 +387,7 @@ dependencies = [
 
 [[package]]
 name = "languageclient"
-version = "0.1.158"
+version = "0.1.159"
 dependencies = [
  "anyhow 1.0.32 (registry+https://github.com/rust-lang/crates.io-index)",
  "clap 2.33.1 (registry+https://github.com/rust-lang/crates.io-index)",
