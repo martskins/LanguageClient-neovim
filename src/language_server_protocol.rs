@@ -700,15 +700,6 @@ impl LanguageClient {
             return Ok(());
         }
 
-        let text = self.get(|state| {
-            state
-                .text_documents
-                .get(filename)
-                .map(|d| d.text.clone())
-                .unwrap_or_default()
-        })?;
-        let lines: Vec<_> = text.lines().map(ToOwned::to_owned).collect();
-
         // Line diagnostics.
         let mut line_diagnostics = HashMap::new();
         for entry in diagnostics {
@@ -734,116 +725,7 @@ impl LanguageClient {
             Ok(())
         })?;
 
-        // Highlight.
-        let diagnostics_display = self.get(|state| state.diagnostics_display.clone())?;
-
-        let mut highlights = vec![];
-        for dn in diagnostics {
-            let line = dn.range.start.line;
-            let character_start = dn.range.start.character;
-            let character_end = dn.range.end.character;
-
-            let severity = dn.severity.unwrap_or(DiagnosticSeverity::Hint);
-            let group = diagnostics_display
-                .get(&severity.to_int()?)
-                .ok_or_else(|| anyhow!("Failed to get display"))?
-                .texthl
-                .clone();
-            // TODO: handle multi-line range.
-            let text = lines
-                .get(line as usize)
-                .and_then(|l| l.get((character_start as usize)..(character_end as usize)))
-                .map(ToOwned::to_owned)
-                .unwrap_or_default();
-
-            highlights.push(Highlight {
-                line,
-                character_start,
-                character_end,
-                group,
-                text,
-            });
-        }
-        // dedup?
-        self.update(|state| {
-            state.highlights.insert(filename.to_owned(), highlights);
-            Ok(())
-        })?;
-
-        if !self.get(|state| state.is_nvim)? {
-            // Clear old highlights.
-            let ids = self.get(|state| state.highlight_match_ids.clone())?;
-            self.vim()?
-                .rpcclient
-                .notify("s:MatchDelete", json!([ids]))?;
-
-            // Group diagnostics by severity so we can highlight them
-            // in a single call.
-            let mut match_groups: HashMap<_, Vec<_>> = HashMap::new();
-
-            for dn in diagnostics {
-                let severity = dn.severity.unwrap_or(DiagnosticSeverity::Hint).to_int()?;
-                match_groups
-                    .entry(severity)
-                    .or_insert_with(Vec::new)
-                    .push(dn);
-            }
-
-            let mut new_match_ids = Vec::new();
-
-            for (severity, dns) in match_groups {
-                let hl_group = diagnostics_display
-                    .get(&severity)
-                    .ok_or_else(|| anyhow!("Failed to get display"))?
-                    .texthl
-                    .clone();
-                let ranges: Vec<Vec<_>> = dns
-                    .iter()
-                    .flat_map(|dn| {
-                        if dn.range.start.line == dn.range.end.line {
-                            let length = dn.range.end.character - dn.range.start.character;
-                            // Vim line numbers are 1 off
-                            // `matchaddpos` expects an array of [line, col, length]
-                            // for each match.
-                            vec![vec![
-                                dn.range.start.line + 1,
-                                dn.range.start.character + 1,
-                                length,
-                            ]]
-                        } else {
-                            let mut middle_lines: Vec<_> = (dn.range.start.line + 1
-                                ..dn.range.end.line)
-                                .map(|l| vec![l + 1])
-                                .collect();
-                            let start_line = vec![
-                                dn.range.start.line + 1,
-                                dn.range.start.character + 1,
-                                999_999, //Clear to the end of the line
-                            ];
-                            let end_line =
-                                vec![dn.range.end.line + 1, 1, dn.range.end.character + 1];
-                            middle_lines.push(start_line);
-                            // For a multi-ringe range ending at the exact start of the last line,
-                            // don't highlight the first character of the last line.
-                            if dn.range.end.character > 0 {
-                                middle_lines.push(end_line);
-                            }
-                            middle_lines
-                        }
-                    })
-                    .collect();
-
-                let match_id = self
-                    .vim()?
-                    .rpcclient
-                    .call("matchaddpos", json!([hl_group, ranges]))?;
-                new_match_ids.push(match_id);
-            }
-            self.update(|state| {
-                state.highlight_match_ids = new_match_ids;
-                Ok(())
-            })?;
-        }
+        self.process_diagnostic_highlights(filename, diagnostics)?;
 
         Ok(())
     }
@@ -2380,6 +2262,7 @@ impl LanguageClient {
             "Begin {}",
             lsp_types::notification::PublishDiagnostics::METHOD
         );
+
         let params = PublishDiagnosticsParams::deserialize(params)?;
         if !self.get(|state| state.diagnostics_enable)? {
             return Ok(());
@@ -2392,70 +2275,176 @@ impl LanguageClient {
         }
         // Unify name to avoid mismatch due to case insensitivity.
         let filename = filename.canonicalize();
+        let filename = filename.as_str();
 
-        let diagnostics_max_severity = self.get(|state| state.diagnostics_max_severity)?;
-        let ignore_sources = self.get(|state| state.diagnostics_ignore_sources.clone())?;
-        let mut diagnostics = params
-            .diagnostics
-            .iter()
-            .filter(|&diagnostic| {
-                if let Some(source) = &diagnostic.source {
-                    if ignore_sources.contains(source) {
-                        return false;
-                    }
-                }
-                diagnostic.severity.unwrap_or(DiagnosticSeverity::Hint) <= diagnostics_max_severity
-            })
-            .map(Clone::clone)
-            .collect::<Vec<_>>();
+        let mut diagnostics = params.diagnostics;
+        diagnostics.sort_by_key(|diagnostic| {
+            (
+                diagnostic.range.start.line,
+                -(diagnostic.severity.unwrap_or(DiagnosticSeverity::Hint) as i8),
+                -(diagnostic.range.start.line as i64),
+            )
+        });
 
+        self.update_diagnostics(filename, &diagnostics)?;
+        self.update_diagnostics_counts(filename, &diagnostics)?;
+
+        let current_filename = self.vim()?.get_filename(&Value::Null)?;
+        let current_filename = current_filename.as_str();
+        if filename != current_filename {
+            return Ok(());
+        }
+
+        self.process_diagnostics(filename, &diagnostics)?;
+        self.handle_cursor_moved(&Value::Null)?;
+
+        self.vim()?
+            .rpcclient
+            .notify("s:ExecuteAutocmd", "LanguageClientDiagnosticsChanged")?;
+
+        info!(
+            "End {}",
+            lsp_types::notification::PublishDiagnostics::METHOD
+        );
+        Ok(())
+    }
+
+    fn process_diagnostic_highlights(
+        &self,
+        filename: &str,
+        diagnostics: &[Diagnostic],
+    ) -> Result<()> {
+        let text = self.get(|state| match state.text_documents.get(filename) {
+            None => String::new(),
+            Some(td) => td.text.clone(),
+        })?;
+        let lines: Vec<_> = text.lines().map(ToOwned::to_owned).collect();
+        let diagnostics_display = self.get(|state| state.diagnostics_display.clone())?;
+
+        let mut highlights = vec![];
+        for dn in diagnostics {
+            let line = dn.range.start.line;
+            let character_start = dn.range.start.character;
+            let character_end = dn.range.end.character;
+
+            let severity = dn.severity.unwrap_or(DiagnosticSeverity::Hint);
+            let group = diagnostics_display
+                .get(&severity.to_int()?)
+                .ok_or_else(|| anyhow!("Failed to get display"))?
+                .texthl
+                .clone();
+            // TODO: handle multi-line range.
+            let text = lines
+                .get(line as usize)
+                .and_then(|l| l.get((character_start as usize)..(character_end as usize)))
+                .map(ToOwned::to_owned)
+                .unwrap_or_default();
+
+            highlights.push(Highlight {
+                line,
+                character_start,
+                character_end,
+                group,
+                text,
+            });
+        }
+
+        // dedup?
         self.update(|state| {
-            state
-                .diagnostics
-                .insert(filename.clone(), diagnostics.clone());
+            state.highlights.insert(filename.to_owned(), highlights);
             Ok(())
         })?;
-        self.update_quickfixlist()?;
 
-        let mut severity_count: HashMap<String, u64> = [
-            (
-                DiagnosticSeverity::Error
-                    .to_quickfix_entry_type()
-                    .to_string(),
-                0,
-            ),
-            (
-                DiagnosticSeverity::Warning
-                    .to_quickfix_entry_type()
-                    .to_string(),
-                0,
-            ),
-            (
-                DiagnosticSeverity::Information
-                    .to_quickfix_entry_type()
-                    .to_string(),
-                0,
-            ),
-            (
-                DiagnosticSeverity::Hint
-                    .to_quickfix_entry_type()
-                    .to_string(),
-                0,
-            ),
-        ]
-        .iter()
-        .cloned()
-        .collect();
+        if !self.get(|state| state.is_nvim)? {
+            // Clear old highlights.
+            let ids = self.get(|state| state.highlight_match_ids.clone())?;
+            self.vim()?
+                .rpcclient
+                .notify("s:MatchDelete", json!([ids]))?;
 
-        for diagnostic in diagnostics.iter() {
-            let severity = diagnostic
-                .severity
-                .unwrap_or(DiagnosticSeverity::Hint)
-                .to_quickfix_entry_type()
-                .to_string();
-            let count = severity_count.entry(severity).or_insert(0);
-            *count += 1;
+            // Group diagnostics by severity so we can highlight them
+            // in a single call.
+            let mut match_groups: HashMap<_, Vec<_>> = HashMap::new();
+
+            for dn in diagnostics {
+                let severity = dn.severity.unwrap_or(DiagnosticSeverity::Hint).to_int()?;
+                match_groups
+                    .entry(severity)
+                    .or_insert_with(Vec::new)
+                    .push(dn);
+            }
+
+            let mut new_match_ids = Vec::new();
+
+            for (severity, dns) in match_groups {
+                let hl_group = diagnostics_display
+                    .get(&severity)
+                    .ok_or_else(|| anyhow!("Failed to get display"))?
+                    .texthl
+                    .clone();
+                let ranges: Vec<Vec<_>> = dns
+                    .iter()
+                    .flat_map(|dn| {
+                        if dn.range.start.line == dn.range.end.line {
+                            let length = dn.range.end.character - dn.range.start.character;
+                            // Vim line numbers are 1 off
+                            // `matchaddpos` expects an array of [line, col, length]
+                            // for each match.
+                            vec![vec![
+                                dn.range.start.line + 1,
+                                dn.range.start.character + 1,
+                                length,
+                            ]]
+                        } else {
+                            let mut middle_lines: Vec<_> = (dn.range.start.line + 1
+                                ..dn.range.end.line)
+                                .map(|l| vec![l + 1])
+                                .collect();
+                            let start_line = vec![
+                                dn.range.start.line + 1,
+                                dn.range.start.character + 1,
+                                999_999, //Clear to the end of the line
+                            ];
+                            let end_line =
+                                vec![dn.range.end.line + 1, 1, dn.range.end.character + 1];
+                            middle_lines.push(start_line);
+                            // For a multi-ringe range ending at the exact start of the last line,
+                            // don't highlight the first character of the last line.
+                            if dn.range.end.character > 0 {
+                                middle_lines.push(end_line);
+                            }
+                            middle_lines
+                        }
+                    })
+                    .collect();
+
+                let match_id = self
+                    .vim()?
+                    .rpcclient
+                    .call("matchaddpos", json!([hl_group, ranges]))?;
+                new_match_ids.push(match_id);
+            }
+            self.update(|state| {
+                state.highlight_match_ids = new_match_ids;
+                Ok(())
+            })?;
         }
+
+        Ok(())
+    }
+
+    fn update_diagnostics_counts(&self, filename: &str, diagnostics: &[Diagnostic]) -> Result<()> {
+        let counts: HashMap<String, usize> = diagnostics
+            .iter()
+            .group_by(|d| {
+                d.severity
+                    .unwrap_or(DiagnosticSeverity::Hint)
+                    .to_quickfix_entry_type()
+                    .to_string()
+            })
+            .into_iter()
+            .map(|(k, v)| (k, v.collect_vec().len()))
+            .collect();
 
         if let Ok(bufnr) = self
             .vim()?
@@ -2465,39 +2454,31 @@ impl LanguageClient {
             if bufnr > 0 {
                 self.vim()?.rpcclient.notify(
                     "setbufvar",
-                    json!([filename, VIM_STATUS_LINE_DIAGNOSTICS_COUNTS, severity_count]),
+                    json!([filename, VIM_STATUS_LINE_DIAGNOSTICS_COUNTS, counts]),
                 )?;
             }
         }
 
-        let current_filename: String = self.vim()?.get_filename(&Value::Null)?;
-        if filename != current_filename.canonicalize() {
-            return Ok(());
-        }
+        Ok(())
+    }
 
-        // Sort diagnostics as pre-process for display.
-        // First sort by line.
-        // Then severity descending. Error should come last since when processing item comes
-        // later will override its precedence.
-        // Then by character descending.
-        diagnostics.sort_by_key(|diagnostic| {
-            (
-                diagnostic.range.start.line,
-                -(diagnostic.severity.unwrap_or(DiagnosticSeverity::Hint) as i8),
-                -(diagnostic.range.start.line as i64),
-            )
-        });
+    fn update_diagnostics(&self, filename: &str, diagnostics: &[Diagnostic]) -> Result<()> {
+        let diagnostics_max_severity = self.get(|state| state.diagnostics_max_severity)?;
+        let ignore_sources = self.get(|state| state.diagnostics_ignore_sources.clone())?;
+        let diagnostics: Vec<Diagnostic> = diagnostics
+            .into_iter()
+            .filter(|d| {
+                (d.source.is_none() || !ignore_sources.contains(d.source.as_ref().unwrap()))
+                    && d.severity.unwrap_or(DiagnosticSeverity::Hint) <= diagnostics_max_severity
+            })
+            .cloned()
+            .collect();
 
-        self.process_diagnostics(&current_filename, &diagnostics)?;
-        self.handle_cursor_moved(&Value::Null)?;
-        self.vim()?
-            .rpcclient
-            .notify("s:ExecuteAutocmd", "LanguageClientDiagnosticsChanged")?;
+        self.update(|state| {
+            state.diagnostics.insert(filename.to_string(), diagnostics);
+            Ok(())
+        })?;
 
-        info!(
-            "End {}",
-            lsp_types::notification::PublishDiagnostics::METHOD
-        );
         Ok(())
     }
 
@@ -3143,6 +3124,7 @@ impl LanguageClient {
     pub fn handle_cursor_moved(&self, params: &Value) -> Result<()> {
         info!("Begin {}", NOTIFICATION_HANDLE_CURSOR_MOVED);
         let filename = self.vim()?.get_filename(params)?;
+
         let language_id = self.vim()?.get_language_id(&filename, params)?;
         let line = self.vim()?.get_position(params)?.line;
         if !self.get(|state| state.server_commands.contains_key(&language_id))? {
