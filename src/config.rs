@@ -7,11 +7,11 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use lsp_types::{DiagnosticSeverity, MarkupKind, MessageType, TraceOption};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::{path::PathBuf, str::FromStr, time::Duration};
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct Config {
     pub auto_start: bool,
     pub server_commands: HashMap<String, Vec<String>>,

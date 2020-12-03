@@ -15,12 +15,42 @@ use std::{
     sync::Arc,
 };
 
+pub struct SafeLock<T> {
+    inner: Arc<RwLock<T>>,
+}
+
+impl<T> Clone for SafeLock<T> {
+    fn clone(&self) -> Self {
+        SafeLock {
+            inner: Arc::clone(&self.inner),
+        }
+    }
+}
+
+impl<T> SafeLock<T> {
+    pub fn new(inner: T) -> Self {
+        Self {
+            inner: Arc::new(RwLock::new(inner)),
+        }
+    }
+
+    pub fn get<K>(&self, f: impl FnOnce(&T) -> K) -> K {
+        f(self.inner.read().deref())
+    }
+
+    pub fn update<K>(&self, f: impl FnOnce(&mut T) -> K) -> K {
+        let mut state = self.inner.write();
+        let mut state = state.deref_mut();
+        f(&mut state)
+    }
+}
+
 #[derive(Clone)]
 pub struct LanguageClient {
     version: String,
     state_mutex: Arc<Mutex<State>>,
     clients_mutex: Arc<Mutex<HashMap<LanguageId, Arc<Mutex<()>>>>>,
-    pub config: Arc<RwLock<Config>>,
+    pub config: SafeLock<Config>,
 }
 
 impl LanguageClient {
@@ -29,7 +59,7 @@ impl LanguageClient {
             version,
             state_mutex: Arc::new(Mutex::new(state)),
             clients_mutex: Arc::new(Mutex::new(HashMap::new())),
-            config: Arc::new(RwLock::new(Config::default())),
+            config: SafeLock::new(Config::default()),
         }
     }
 
