@@ -19,7 +19,7 @@ tag-name = "{{version}}"
 [dependencies]
 itertools = "0.9"
 log = "0.4"
-log4rs = "0"
+log4rs = "1"
 clap = { version = "2", default-features = false }
 maplit = "1"
 serde = "1"
